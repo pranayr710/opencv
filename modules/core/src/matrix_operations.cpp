@@ -833,10 +833,16 @@ void cv::reduce(InputArray _src, OutputArray _dst, int dim, int op, int dtype)
     if( op == REDUCE_AVG )
     {
         op = REDUCE_SUM;
-        if( sdepth < CV_32S && ddepth < CV_32S )
+        // An average is summed first, so an integer destination needs an accumulator the row
+        // sum cannot overflow. CV_32S covers the 8-bit depths and is the long-standing choice
+        // for them. It does not cover the wider ones: a CV_16U row passes INT_MAX after 32768
+        // maximal elements, and no 16-bit or 32-bit source has a reduce kernel writing CV_32S,
+        // so promoting them to CV_32S threw "Unsupported combination" instead of averaging.
+        if( ddepth <= CV_32S )
         {
-            temp.create(dst.rows, dst.cols, CV_32SC(cn));
-            ddepth = CV_32S;
+            int adepth = sdepth <= CV_8S ? CV_32S : CV_64F;
+            temp.create(dst.rows, dst.cols, CV_MAKETYPE(adepth, cn));
+            ddepth = adepth;
         }
     }
 
